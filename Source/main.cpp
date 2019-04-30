@@ -2,7 +2,7 @@
 
 int main(int argc, char const *argv[])
 {
-    PPMC ppm(0, "msg.txt");
+    PPMC ppm(atoi(argv[1]), argv[2], "Outputs/output.txt");
 
     ppm.Compress();
 

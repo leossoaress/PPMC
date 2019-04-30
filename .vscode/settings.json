@@ -31,6 +31,9 @@
         "cmath": "cpp",
         "optional": "cpp",
         "string_view": "cpp",
-        "system_error": "cpp"
+        "system_error": "cpp",
+        "complex": "cpp",
+        "ctime": "cpp",
+        "iomanip": "cpp"
     }
 }

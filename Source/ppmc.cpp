@@ -1,6 +1,6 @@
 #include "ppmc.h"
 
-PPMC::PPMC(unsigned int order_, std::string inputname) : order(order_)
+PPMC::PPMC(unsigned int order_, std::string inputname, std::string outputname) : order(order_)
 {
     root = new Node(ROOT);
     base = root;
@@ -10,18 +10,41 @@ PPMC::PPMC(unsigned int order_, std::string inputname) : order(order_)
         std::cout << "Could not open input file" << std::endl;
         exit(-1);
     }
+
+    input.seekg(0, std::ios::end);
+    long size = input.tellg();
+    input.seekg(0, std::ios::beg);
+
+    std::vector<unsigned char> v (size/sizeof(char));
+    input.read((char *) &v[0], size);
+
+    this->data = new std::string(v.begin(), v.end());
+    step_progess = 1.0 / this->data->size();
+
+    output.open(outputname, std::ios::out | std::ios::binary);
+    if(!output) {
+        std::cout << "Unable to open output file" << std::endl;
+        exit(0);
+    }
+
+    arithmetic.SetFile(&output);
 }
 
 void PPMC::Compress()
 {
-    std::string msg = "abracadabrad";
+    clock_t start = std::clock();
 
-    for(unsigned int i = 0; i < msg.size(); ++i) {
-        Encode(msg[i]);
-        InsertSymbol(msg[i]);
+    for(auto &ch : *data) {
+        Encode(ch);
+        InsertSymbol(ch);
+        Progress();
     }
 
-    //PrintTree(this->root, 0);
+    arithmetic.EncodeFinish();
+    duration = (std::clock() - start) / (double) CLOCKS_PER_SEC;
+
+    std::cout << std::setprecision(3) << std::fixed;
+    std::clog << "\nCompression duration time: " << duration << " segundos" << std::endl;
 }
 
 void PPMC::Encode(unsigned char symbol_)
@@ -35,7 +58,7 @@ void PPMC::Encode(unsigned char symbol_)
         pActualNode = pVine->FindChild(symbol_);
 
         if(pActualNode == nullptr && pVine->GetChild() != nullptr) {
-            std::cout << "esc: ";
+            //std::cout << "esc: ";
             GetInterval(pVine, pVine->GetEsc(), excluded);
 
             Node* pAux = pVine->GetChild();
@@ -47,7 +70,7 @@ void PPMC::Encode(unsigned char symbol_)
             pVine = pVine->GetVine();
         }
         else if(pActualNode != nullptr){
-            std::cout << pActualNode->GetSymbol() << ": ";
+            //std::cout << pActualNode->GetSymbol() << ": ";
             GetInterval(pVine, pActualNode, excluded);
             return;
         } 
@@ -58,7 +81,7 @@ void PPMC::Encode(unsigned char symbol_)
 
     if(pVine == nullptr) {
         usedCh[symbol_] = true;
-        std::cout << "Root: ";
+        //std::cout << "Root: ";
         GetInverval2(symbol_);
         return;
     }
@@ -117,7 +140,8 @@ void PPMC::GetInterval(Node *pDad, Node *pChild, bool *arr)
         pAuxNode = pAuxNode->GetSibiling();
     }
 
-    printf("(%d,%d,%d)\n", sum, sum+pChild->GetCount(), pDad->GetChildrenCount()-sum2);
+    //printf("(%d,%d,%d)\n", sum, sum+pChild->GetCount(), pDad->GetChildrenCount()-sum2);
+    arithmetic.Encode(sum, sum+pChild->GetCount(), pDad->GetChildrenCount()-sum2);
 }
 
 void PPMC::GetInverval2(unsigned char symbol_)
@@ -130,7 +154,8 @@ void PPMC::GetInverval2(unsigned char symbol_)
         }
     }
 
-    printf("(%d,%d,%d)\n", sum, sum+1, numCh);
+    //printf("(%d,%d,%d)\n", sum, sum+1, numCh);
+    arithmetic.Encode(sum, sum+1, numCh);
     numCh--;
 }
 
@@ -176,4 +201,18 @@ void PPMC::PrintTree(Node* node, int deep)
             PrintTree(node->GetSibiling(), --deep);
         }
     }    
+}
+
+void PPMC::Progress()
+{
+    progess = progess + step_progess;
+
+    std::stringstream progress_stream;
+    progress_stream << "\rProgress .........................: "
+                    << std::fixed << std::setw( 6 )
+                    << std::setprecision( 2 )
+                    << 100 * progess
+                    << "%";
+
+    std::clog << progress_stream.str();
 }
